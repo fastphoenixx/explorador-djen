@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Explorador DJEN</title>
+<meta name="description" content="Consulta às comunicações do Diário de Justiça Eletrônico Nacional (Comunica API do CNJ).">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f6f6f8; --panel: #ffffff; --panel2: #f0f0f4; --line: #dedee6;
+    --ink: #15151c; --muted: #5f5f6e; --accent: #1d24ca; --accent-soft: #1d24ca14;
+    --warn: #9a6200; --warn-soft: #f2c66d33; --bad: #b42323; --ok: #1f7a4d;
+    --shadow: 0 1px 2px #0000000d, 0 2px 8px #0000000a;
+    --sans: "Instrument Sans", system-ui, -apple-system, sans-serif;
+    --mono: "DM Mono", ui-monospace, SFMono-Regular, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #08080a; --panel: #111116; --panel2: #1a1a22; --line: #2a2a35;
+      --ink: #ececf1; --muted: #a2a2b2; --accent: #98abee; --accent-soft: #98abee1f;
+      --warn: #f2c66d; --warn-soft: #f2c66d22; --bad: #f08a8a; --ok: #7fd1a8; --shadow: none;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #08080a; --panel: #111116; --panel2: #1a1a22; --line: #2a2a35;
+    --ink: #ececf1; --muted: #a2a2b2; --accent: #98abee; --accent-soft: #98abee1f;
+    --warn: #f2c66d; --warn-soft: #f2c66d22; --bad: #f08a8a; --ok: #7fd1a8; --shadow: none;
+  }
+  * { box-sizing: border-box; }
+  html { font-size: 17px; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.5; }
+  a { color: var(--accent); }
+  button, input, select { font: inherit; color: inherit; }
+
+  header { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: .9rem; flex-wrap: wrap;
+    padding: .8rem 1.25rem; background: var(--panel); border-bottom: 1px solid var(--line); }
+  header h1 { margin: 0; font-size: 1.2rem; letter-spacing: -.01em; }
+  header .sub { color: var(--muted); font-size: .9rem; }
+  header .dir { margin-left: auto; display: flex; gap: .5rem; align-items: center; }
+  .modo { font-size: .8rem; font-weight: 600; padding: .15rem .55rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+
+  .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 1.25rem; padding: 1.25rem; max-width: 1400px; margin: 0 auto; }
+  aside { position: sticky; top: 4.6rem; align-self: start; max-height: calc(100vh - 5.8rem); overflow: auto;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 1.1rem; box-shadow: var(--shadow); }
+  fieldset { border: 0; padding: 0; margin: 0 0 1.1rem; }
+  legend { font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .2rem; }
+  label { display: block; font-size: .88rem; color: var(--muted); margin: .55rem 0 .2rem; }
+  input, select { width: 100%; padding: .5rem .65rem; font-size: 1rem; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .dupla { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: .6rem; }
+  .dupla > div { min-width: 0; }
+  .dupla.oab { grid-template-columns: minmax(0,1.6fr) minmax(0,1fr); }
+
+  .btn { cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); padding: .45rem .85rem; font-size: .95rem; white-space: nowrap; }
+  .btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.primario { width: 100%; padding: .65rem; background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 700; }
+  .btn.primario:hover:not(:disabled) { color: var(--bg); filter: brightness(1.08); }
+  .btn.link { border: 0; background: none; padding: .2rem 0; color: var(--accent); }
+  .acoes-form { display: flex; gap: .5rem; margin-top: .6rem; }
+  .acoes-form .btn { flex: 1; }
+  .dica { font-size: .85rem; color: var(--muted); margin: .9rem 0 0; }
+
+  .resumo { display: flex; flex-wrap: wrap; gap: .5rem .75rem; align-items: center; margin-bottom: .75rem; }
+  .resumo .total { font-size: 1.15rem; font-weight: 700; }
+  .resumo .info { color: var(--muted); font-size: .92rem; }
+  .resumo .esp { flex: 1; }
+  .url { display: block; font-family: var(--mono); font-size: .8rem; color: var(--muted); word-break: break-all; margin: 0 0 .9rem; }
+  .chips { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1rem; }
+  .chip { cursor: pointer; font-size: .85rem; padding: .25rem .65rem; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); }
+  .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+  .chip b { font-family: var(--mono); font-weight: 500; margin-left: .3rem; opacity: .8; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 1rem 1.1rem; margin-bottom: .8rem; box-shadow: var(--shadow); }
+  .card .topo { display: flex; flex-wrap: wrap; gap: .4rem .7rem; align-items: center; }
+  .data { font-family: var(--mono); font-size: .9rem; color: var(--muted); }
+  .trib { font-size: .8rem; font-weight: 700; padding: .1rem .5rem; border-radius: 6px; background: var(--accent-soft); color: var(--accent); }
+  .tipo { font-size: .8rem; font-weight: 600; padding: .1rem .5rem; border-radius: 6px; background: var(--warn-soft); color: var(--warn); }
+  .proc { font-family: var(--mono); font-size: .95rem; font-weight: 500; }
+  .classe { font-weight: 600; margin: .35rem 0 0; }
+  .meta { color: var(--muted); font-size: .9rem; margin: .1rem 0; }
+  .meta strong { color: var(--ink); font-weight: 500; }
+  .preview { margin: .6rem 0 0; font-size: .95rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
+  .preview.aberto { display: block; -webkit-line-clamp: unset; white-space: pre-wrap; background: var(--panel2); border-radius: 8px; padding: .8rem; max-height: 480px; overflow: auto; }
+  .card .acoes { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-top: .7rem; }
+  .card .acoes .esp { flex: 1; }
+
+  .estado { text-align: center; color: var(--muted); padding: 3rem 1rem; background: var(--panel); border: 1px dashed var(--line); border-radius: 14px; }
+  .estado.erro { color: var(--bad); border-color: var(--bad); white-space: pre-wrap; text-align: left; }
+  .skeleton { height: 120px; border-radius: 14px; margin-bottom: .8rem; background: linear-gradient(90deg, var(--panel) 0%, var(--panel2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: brilho 1.2s infinite; border: 1px solid var(--line); }
+  @keyframes brilho { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  .paginacao { display: flex; justify-content: center; gap: .6rem; align-items: center; margin: 1.2rem 0 2rem; }
+
+  /* gaveta do processo (modo local) */
+  #veu { position: fixed; inset: 0; background: #0006; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 9; }
+  #veu.on { opacity: 1; pointer-events: auto; }
+  #gaveta { position: fixed; top: 0; right: 0; bottom: 0; width: min(780px, 100vw); background: var(--panel); border-left: 1px solid var(--line);
+    transform: translateX(100%); transition: transform .2s; overflow: auto; padding: 1.2rem 1.4rem 2rem; z-index: 10; }
+  #gaveta.on { transform: none; }
+  #gaveta h2 { margin: .2rem 0; font-family: var(--mono); font-size: 1.15rem; }
+  #gaveta h3 { margin: 1.4rem 0 .5rem; font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .fechar { float: right; }
+  table { width: 100%; border-collapse: collapse; font-size: .93rem; }
+  td { padding: .5rem .4rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.d { font-family: var(--mono); font-size: .82rem; color: var(--muted); white-space: nowrap; width: 1%; }
+  td.a { width: 1%; white-space: nowrap; }
+  .tag-pet { font-size: .75rem; font-weight: 600; padding: .05rem .4rem; border-radius: 5px; background: var(--warn-soft); color: var(--warn); margin-left: .3rem; }
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: .25rem 1rem; font-size: .93rem; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; padding: 1rem; }
+    aside { position: static; max-height: none; }
+    header .sub { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Explorador DJEN</h1>
+  <span class="sub">Comunica API do CNJ · publicações de todos os tribunais</span>
+  <div class="dir">
+    <span class="modo" id="modo"></span>
+    <button class="btn" id="tema" type="button" title="Alternar tema claro/escuro">Tema</button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside>
+    <form id="form" autocomplete="off">
+      <fieldset>
+        <legend>Quem</legend>
+        <div class="dupla oab">
+          <div><label for="numeroOab">Nº OAB</label><input id="numeroOab" name="numeroOab" inputmode="numeric" placeholder="12345"></div>
+          <div><label for="ufOab">UF</label><input id="ufOab" name="ufOab" maxlength="2" placeholder="GO" style="text-transform:uppercase"></div>
+        </div>
+        <label for="nomeAdvogado">Nome do advogado</label><input id="nomeAdvogado" name="nomeAdvogado">
+        <label for="nomeParte">Nome da parte</label><input id="nomeParte" name="nomeParte">
+      </fieldset>
+      <fieldset>
+        <legend>O quê</legend>
+        <label for="numeroProcesso">Nº do processo</label><input id="numeroProcesso" name="numeroProcesso" placeholder="0000000-00.0000.0.00.0000">
+        <label for="texto">Texto contido</label><input id="texto" name="texto" placeholder="ex.: penhora">
+        <label for="siglaTribunal">Tribunal</label><input id="siglaTribunal" name="siglaTribunal" list="tribunais" placeholder="TJMS, TJSP, TRF1…" style="text-transform:uppercase">
+        <datalist id="tribunais"></datalist>
+      </fieldset>
+      <fieldset>
+        <legend>Quando</legend>
+        <div class="dupla">
+          <div><label for="dataDisponibilizacaoInicio">De</label><input type="date" id="dataDisponibilizacaoInicio" name="dataDisponibilizacaoInicio"></div>
+          <div><label for="dataDisponibilizacaoFim">Até</label><input type="date" id="dataDisponibilizacaoFim" name="dataDisponibilizacaoFim"></div>
+        </div>
+        <div class="dupla">
+          <div><label for="meio">Meio</label>
+            <select id="meio" name="meio"><option value="">Todos</option><option value="D">Diário</option><option value="E">Edital</option></select></div>
+          <div><label for="itensPorPagina">Por página</label>
+            <select id="itensPorPagina" name="itensPorPagina"><option>100</option><option>5</option></select></div>
+        </div>
+      </fieldset>
+      <input type="hidden" id="pagina" name="pagina" value="1">
+      <button class="btn primario" type="submit" id="btn">Consultar</button>
+      <div class="acoes-form">
+        <button class="btn" type="button" id="limpar">Limpar</button>
+        <button class="btn" type="button" id="copiarLink">Copiar link</button>
+      </div>
+    </form>
+    <p class="dica">Preencha pelo menos OAB, advogado, parte, processo, texto ou tribunal. O CNJ limita as requisições por IP; se aparecer erro 429, espere 1 minuto.</p>
+    <div id="blocoLocal" hidden>
+      <fieldset style="margin-top:1.2rem">
+        <legend>Processo no TJDFT</legend>
+        <label for="procDireto">Nº do processo</label>
+        <input id="procDireto" placeholder="0716345-20.2026.8.07.0001">
+        <button class="btn" id="btnProc" type="button" style="width:100%;margin-top:.6rem">Abrir processo</button>
+      </fieldset>
+    </div>
+  </aside>
+
+  <main id="resultados" aria-live="polite">
+    <div class="estado">Preencha os parâmetros e clique em <strong>Consultar</strong>.<br>Exemplo: sua OAB e UF, para ver tudo o que foi publicado para você.</div>
+  </main>
+</div>
+
+<div id="veu"></div>
+<aside id="gaveta" aria-label="Detalhe do processo"></aside>
+
+<script>
+const DJEN = "https://comunicaapi.pje.jus.br/api/v1/comunicacao";
+// Modo local = servido pelo servidor.py (tem proxy pro TJDFT, que bloqueia chamadas de outros sites).
+const LOCAL = ["localhost", "127.0.0.1"].includes(location.hostname);
+const TRIBUNAIS = "STF STJ TST TSE STM TRF1 TRF2 TRF3 TRF4 TRF5 TRF6 TRT1 TRT2 TRT3 TRT4 TRT5 TRT6 TRT7 TRT8 TRT9 TRT10 TRT11 TRT12 TRT13 TRT14 TRT15 TRT16 TRT17 TRT18 TRT19 TRT20 TRT21 TRT22 TRT23 TRT24 TJAC TJAL TJAP TJAM TJBA TJCE TJDFT TJES TJGO TJMA TJMT TJMS TJMG TJPA TJPB TJPR TJPE TJPI TJRJ TJRN TJRS TJRO TJRR TJSC TJSP TJSE TJTO".split(" ");
+const CAMPOS = ["numeroOab","ufOab","nomeAdvogado","nomeParte","numeroProcesso","texto","siglaTribunal","dataDisponibilizacaoInicio","dataDisponibilizacaoFim","meio","itensPorPagina","pagina"];
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const textoPuro = html => {  // texto do DJEN vem em HTML: vira texto sem executar nada
+  const doc = new DOMParser().parseFromString(String(html ?? "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div)>/gi, "\n"), "text/html");
+  return (doc.body.textContent || "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+};
+const mascara = n => { const d = String(n ?? "").replace(/\D/g, ""); return d.length === 20 ? `${d.slice(0,7)}-${d.slice(7,9)}.${d.slice(9,13)}.${d.slice(13,14)}.${d.slice(14,16)}.${d.slice(16)}` : (n || ""); };
+const dataBR = s => /^\d{4}-\d{2}-\d{2}$/.test(s || "") ? s.split("-").reverse().join("/") : (s || "");
+
+let ultimo = null, filtroTrib = null;
+
+// ---------- tema ----------
+const tema = (() => { try { return localStorage.getItem("tema"); } catch { return null; } })();
+if (tema) document.documentElement.dataset.theme = tema;
+$("#tema").onclick = () => {
+  const escuro = matchMedia("(prefers-color-scheme: dark)").matches;
+  const atual = document.documentElement.dataset.theme || (escuro ? "dark" : "light");
+  const novo = atual === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = novo;
+  try { localStorage.setItem("tema", novo); } catch {}
+};
+
+// ---------- formulário <-> URL ----------
+$("#modo").textContent = LOCAL ? "modo local · TJDFT ativo" : "modo web";
+$("#blocoLocal").hidden = !LOCAL;
+$("#tribunais").innerHTML = TRIBUNAIS.map(t => `<option value="${t}">`).join("");
+
+function paramsDoForm() {
+  const p = new URLSearchParams();
+  for (const c of CAMPOS) {
+    let v = ($("#" + c).value || "").trim();
+    if (c === "ufOab" || c === "siglaTribunal") v = v.toUpperCase();
+    if (c === "numeroProcesso") v = v.replace(/\D/g, "");
+    if (v) p.set(c, v);
+  }
+  return p;
+}
+function formDaURL() {
+  const q = new URLSearchParams(location.search);
+  for (const c of CAMPOS) if (q.has(c)) $("#" + c).value = q.get(c);
+  return CAMPOS.some(c => c !== "pagina" && c !== "itensPorPagina" && q.get(c));
+}
+
+// ---------- consulta ----------
+async function consultar() {
+  const p = paramsDoForm();
+  const filtros = ["numeroOab","nomeAdvogado","nomeParte","numeroProcesso","texto","siglaTribunal"];
+  if (!filtros.some(f => p.get(f))) return mostrarErro("Preencha pelo menos um destes: OAB, nome do advogado, nome da parte, nº do processo, texto ou tribunal.");
+  if (p.get("numeroOab") && !p.get("ufOab")) return mostrarErro("Informe a UF da OAB.");
+  history.replaceState(null, "", "?" + p);
+  const btn = $("#btn"); btn.disabled = true; btn.textContent = "Consultando…";
+  $("#resultados").innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
+  try {
+    const url = `${DJEN}?${p}`;
+    const r = await fetch(LOCAL ? `/api/djen?${p}` : url);
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 429) throw new Error("Limite de requisições do CNJ atingido (429). Espere 1 minuto e tente de novo.");
+    if (!r.ok || d.erro) throw new Error(d.erro || d.message || `Erro HTTP ${r.status}`);
+    d._url = url;
+    if (!LOCAL) d._ratelimit = { restante: r.headers.get("x-ratelimit-remaining"), limite: r.headers.get("x-ratelimit-limit") };
+    else d._ratelimit = { restante: d._ratelimit?.["x-ratelimit-remaining"], limite: d._ratelimit?.["x-ratelimit-limit"] };
+    ultimo = d; filtroTrib = null;
+    renderizar();
+  } catch (err) {
+    mostrarErro(err.message === "Failed to fetch" ? "Não consegui falar com a API do CNJ (rede fora ou bloqueio)." : err.message);
+  } finally { btn.disabled = false; btn.textContent = "Consultar"; }
+}
+function mostrarErro(msg) { $("#resultados").innerHTML = `<div class="estado erro">${esc(msg)}</div>`; }
+
+function renderizar() {
+  const d = ultimo, todos = d.items || [];
+  const pagina = Number($("#pagina").value || 1), porPagina = Number($("#itensPorPagina").value || 100);
+  const totalPag = Math.max(1, Math.ceil(Math.min(d.count || 0, 10000) / porPagina));
+  const porTrib = {};
+  todos.forEach(i => porTrib[i.siglaTribunal] = (porTrib[i.siglaTribunal] || 0) + 1);
+  const itens = filtroTrib ? todos.filter(i => i.siglaTribunal === filtroTrib) : todos;
+  const processos = new Set(todos.map(i => i.numero_processo)).size;
+  const rl = d._ratelimit || {};
+  let h = `<div class="resumo">
+      <span class="total">${(d.count ?? 0).toLocaleString("pt-BR")} publicações</span>
+      <span class="info">página ${pagina} de ${totalPag} · ${processos} processos nesta página</span>
+      <span class="esp"></span>
+      ${rl.limite ? `<span class="info" title="Requisições restantes na janela atual do CNJ">cota ${esc(rl.restante)}/${esc(rl.limite)}</span>` : ""}
+      <button class="btn" type="button" onclick="baixarJSON()">Baixar JSON</button>
+    </div>
+    <a class="url" href="${esc(d._url)}" target="_blank" rel="noopener">${esc(d._url)}</a>`;
+  if ((d.count || 0) > 10000) h += `<p class="meta">A API devolve no máximo 10.000 resultados por consulta. Refine por data ou tribunal.</p>`;
+  if (Object.keys(porTrib).length > 1) {
+    h += `<div class="chips"><button type="button" class="chip" aria-pressed="${!filtroTrib}" onclick="filtrar(null)">Todos<b>${todos.length}</b></button>` +
+      Object.entries(porTrib).sort((a, b) => b[1] - a[1]).map(([t, n]) =>
+        `<button type="button" class="chip" aria-pressed="${filtroTrib === t}" onclick="filtrar('${esc(t)}')">${esc(t)}<b>${n}</b></button>`).join("") + `</div>`;
+  }
+  if (!todos.length) h += `<div class="estado">Nada encontrado com esses parâmetros.</div>`;
+  itens.forEach((i, idx) => h += cartao(i, idx));
+  if (totalPag > 1) h += `<nav class="paginacao">
+      <button class="btn" type="button" ${pagina <= 1 ? "disabled" : ""} onclick="irPagina(${pagina - 1})">← Anterior</button>
+      <span class="info">${pagina} / ${totalPag}</span>
+      <button class="btn" type="button" ${pagina >= totalPag ? "disabled" : ""} onclick="irPagina(${pagina + 1})">Próxima →</button></nav>`;
+  $("#resultados").innerHTML = h;
+}
+
+function cartao(i, idx) {
+  const texto = textoPuro(i.texto);
+  const advs = (i.destinatarioadvogados || []).map(a => `${a.advogado?.nome} (${a.advogado?.numero_oab}/${a.advogado?.uf_oab})`);
+  const partes = (i.destinatarios || []).map(p => p.nome).filter(Boolean);
+  const num = i.numeroprocessocommascara || mascara(i.numero_processo);
+  const x = (i.link || "").split("x=")[1];
+  const tjdft = LOCAL && i.siglaTribunal === "TJDFT";
+  const lista = (arr, n) => esc(arr.slice(0, n).join(" · ")) + (arr.length > n ? ` <span>+${arr.length - n}</span>` : "");
+  return `<article class="card">
+    <div class="topo">
+      <span class="data">${esc(dataBR(i.data_disponibilizacao))}</span>
+      <span class="trib">${esc(i.siglaTribunal)}</span>
+      <span class="tipo">${esc(i.tipoComunicacao)}</span>
+      <span class="proc">${esc(num)}</span>
+      <button class="btn link" type="button" onclick="copiar('${esc(num)}', this)">copiar nº</button>
+    </div>
+    <p class="classe">${esc((i.nomeClasse || "").toLocaleUpperCase("pt-BR"))}</p>
+    <p class="meta">${esc(i.nomeOrgao || "")}</p>
+    ${partes.length ? `<p class="meta"><strong>Partes:</strong> ${lista(partes, 3)}</p>` : ""}
+    ${advs.length ? `<p class="meta"><strong>Advogados:</strong> ${lista(advs, 3)}</p>` : ""}
+    <div class="preview" id="t${idx}">${esc(texto) || "<em>sem texto</em>"}</div>
+    <div class="acoes">
+      ${texto.length > 240 ? `<button class="btn link" type="button" onclick="alternar(${idx}, this)">Ver texto completo</button>` : ""}
+      <span class="esp"></span>
+      ${tjdft && x ? `<button class="btn" type="button" onclick="pdfDoLink('${esc(x)}','${esc(i.numero_processo)}')">PDF da publicação</button>` : ""}
+      ${tjdft ? `<button class="btn" type="button" onclick="abrirProcesso('${esc(num)}')">Abrir processo</button>` : ""}
+      ${i.link ? `<a class="btn" href="${esc(i.link)}" target="_blank" rel="noopener">No tribunal ↗</a>` : ""}
+    </div>
+  </article>`;
+}
+
+function filtrar(t) { filtroTrib = t; renderizar(); }
+function alternar(idx, b) { const el = $("#t" + idx); el.classList.toggle("aberto"); b.textContent = el.classList.contains("aberto") ? "Recolher texto" : "Ver texto completo"; }
+function irPagina(p) { $("#pagina").value = p; consultar(); scrollTo({ top: 0, behavior: "smooth" }); }
+async function copiar(txt, b) { try { await navigator.clipboard.writeText(txt); const o = b.textContent; b.textContent = "copiado ✓"; setTimeout(() => b.textContent = o, 1200); } catch {} }
+function baixarJSON() {
+  const blob = new Blob([JSON.stringify(ultimo, null, 2)], { type: "application/json" });
+  Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "djen.json" }).click();
+}
+
+// ---------- TJDFT (só modo local) ----------
+async function pdfDoLink(x, processo) {
+  try {
+    const d = await (await fetch("/api/tjdft/validar?x=" + encodeURIComponent(x))).json();
+    const id = d.result?.idDocumento;
+    if (!id) throw new Error(d.erro || "documento não encontrado");
+    open(`/api/tjdft/pdf?id=${encodeURIComponent(id)}&nome=${encodeURIComponent(processo)}`, "_blank");
+  } catch (err) { alert("Não consegui abrir o PDF: " + err.message); }
+}
+const gaveta = (on) => { $("#gaveta").classList.toggle("on", on); $("#veu").classList.toggle("on", on); };
+async function abrirProcesso(numero) {
+  const g = $("#gaveta");
+  const fechar = `<button class="btn fechar" type="button" onclick="gaveta(false)">Fechar ✕</button>`;
+  g.innerHTML = fechar + `<p class="meta">Carregando ${esc(numero)}…</p><div class="skeleton"></div><div class="skeleton"></div>`;
+  gaveta(true);
+  try {
+    const r = await fetch("/api/tjdft/processo?numero=" + encodeURIComponent(numero));
+    const d = await r.json();
+    if (!r.ok || d.erro) throw new Error(d.erro || `HTTP ${r.status}`);
+    const p = d.processo, dados = d.dados || {};
+    const pdf = (id, nome) => `/api/tjdft/pdf?id=${encodeURIComponent(id)}&nome=${encodeURIComponent(nome)}`;
+    const nomes = { dataDistribuicao: "Distribuição", classeJudicial: "Classe", assunto: "Assunto", jurisdicao: "Jurisdição", orgaoJulgador: "Órgão julgador", valorCausa: "Valor da causa" };
+    const kv = Object.entries(dados).filter(([k, v]) => k !== "numeroProcesso" && v !== null && v !== "" && typeof v !== "object")
+      .map(([k, v]) => `<dt>${esc(nomes[k] || k)}</dt><dd>${esc(v)}</dd>`).join("");
+    const comDoc = d.movimentacoes.filter(m => m.idDocumento).length;
+    const movs = d.movimentacoes.map(m => `<tr>
+        <td class="d">${esc(m.dataAtualizacao)}</td>
+        <td>${esc(m.movimento)}${/peti[cç][aã]o/i.test(m.movimento) ? '<span class="tag-pet">petição</span>' : ""}${m.documento ? `<div class="meta">${esc(m.documento)}</div>` : ""}</td>
+        <td class="a">${m.idDocumento ? `<a href="${pdf(m.idDocumento, numero + "_" + m.dataAtualizacao.slice(0, 10).replaceAll("/", "-"))}" target="_blank">PDF</a>` : '<span class="meta">—</span>'}</td></tr>`).join("");
+    g.innerHTML = fechar + `
+      <p class="meta">TJDFT · consulta pública</p>
+      <h2>${esc(p.numeroProcesso)}</h2>
+      <p class="classe">${esc(p.classe)} · ${esc(p.assunto)}</p>
+      <p class="meta">${esc(p.partes?.poloAtivo?.nomeParte)} × ${esc(p.partes?.poloPassivo?.nomeParte)}</p>
+      <div class="card acoes" style="box-shadow:none"><a class="btn" href="/api/tjdft/pdf?processo=${encodeURIComponent(p.idProcesso)}&nome=${encodeURIComponent(p.numeroProcesso)}_detalhe" target="_blank">PDF do detalhe do processo ↗</a></div>
+      ${kv ? `<h3>Dados</h3><dl class="kv">${kv}</dl>` : ""}
+      <h3>Movimentações · ${d.movimentacoes.length} (${comDoc} com documento)</h3>
+      <table>${movs}</table>
+      <p class="dica">A petição inicial e os anexos da distribuição não aparecem na consulta pública.</p>`;
+  } catch (err) {
+    g.innerHTML = fechar + `<div class="estado erro">${esc(err.message)}</div>`;
+  }
+}
+$("#veu").onclick = () => gaveta(false);
+addEventListener("keydown", e => { if (e.key === "Escape") gaveta(false); });
+
+// ---------- eventos ----------
+$("#form").addEventListener("submit", e => { e.preventDefault(); $("#pagina").value = 1; consultar(); });
+$("#limpar").onclick = () => { $("#form").reset(); history.replaceState(null, "", location.pathname); $("#resultados").innerHTML = '<div class="estado">Parâmetros limpos.</div>'; };
+$("#copiarLink").onclick = async e => { history.replaceState(null, "", "?" + paramsDoForm()); await copiar(location.href, e.target); };
+$("#btnProc").onclick = () => { const n = $("#procDireto").value.trim(); if (n) abrirProcesso(n); };
+if (formDaURL()) consultar();
+</script>
+</body>
+</html>
