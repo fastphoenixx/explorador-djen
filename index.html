@@ -279,7 +279,7 @@ function renderizar() {
       <button class="btn" type="button" onclick="baixarJSON()">Baixar JSON</button>
     </div>
     <a class="url" href="${esc(d._url)}" target="_blank" rel="noopener">${esc(d._url)}</a>`;
-  if ((d.count || 0) > 10000) h += `<p class="meta">A API devolve no máximo 10.000 resultados por consulta. Refine por data ou tribunal.</p>`;
+  if ((d.count || 0) >= 10000) h += `<p class="meta">A API devolve no máximo 10.000 resultados por consulta. Refine por data ou tribunal.</p>`;
   if (Object.keys(porTrib).length > 1) {
     h += `<div class="chips"><button type="button" class="chip" aria-pressed="${!filtroTrib}" onclick="filtrar(null)">Todos<b>${todos.length}</b></button>` +
       Object.entries(porTrib).sort((a, b) => b[1] - a[1]).map(([t, n]) =>
